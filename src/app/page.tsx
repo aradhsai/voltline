@@ -24,7 +24,7 @@ import {
   CARBON_KG_PER_KWH,
   TARIFF_AED_PER_KWH,
 } from "@/lib/data";
-import { fmt, fmtLength } from "@/lib/format";
+import { fmt } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { AXIS, Card, DIV_COLOR, GRID, StatTile, VTooltip } from "@/components/ui";
 
@@ -35,18 +35,15 @@ export default function Dashboard() {
   const live = LINES.map((l) => liveReading(l, now.getTime()));
   const totalKw = live.reduce((s, r) => s + r.kw, 0);
   const energyToday = live.reduce((s, r) => s + r.energyTodayKwh, 0);
-  const productionToday = live.reduce((s, r) => s + r.lengthTodayM, 0);
   const runningLines = live.filter((r) => r.running);
-  const productiveRunning = live.filter(
-    (r, i) => r.running && LINES[i].maxSpeed > 0
-  );
-  const avgSpeed =
-    productiveRunning.length > 0
-      ? productiveRunning.reduce((s, r) => s + r.speed, 0) /
-        productiveRunning.length
+  const avgPfNow =
+    runningLines.length > 0
+      ? runningLines.reduce((s, r) => s + r.pf, 0) / runningLines.length
       : 0;
-  const sec =
-    productionToday > 0 ? energyToday / (productionToday / 1000) : 0;
+
+  const week = lastNDays(7, now);
+  const today = daySummary(now, now.getHours() + 1);
+  const alerts = todaysAlerts(now);
 
   // last 60 min plant load, one sample per minute
   const loadTrail = Array.from({ length: 61 }, (_, i) => {
@@ -73,9 +70,7 @@ export default function Dashboard() {
     return row;
   });
 
-  const week = lastNDays(7, now);
-  const today = daySummary(now, now.getHours() + 1);
-  const alerts = todaysAlerts(now);
+
 
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
@@ -90,16 +85,15 @@ export default function Dashboard() {
             sub={`AED ${fmt(energyToday * TARIFF_AED_PER_KWH)} at 0.45/kWh`}
           />
           <StatTile
-            label="Production today"
-            value={fmtLength(productionToday).split(" ")[0]}
-            unit={fmtLength(productionToday).split(" ")[1]}
-            sub={`${runningLines.length} of ${LINES.length} machines running`}
+            label="Peak demand today"
+            value={fmt(today.peakKw)}
+            unit="kW"
+            sub="highest hourly plant demand"
           />
           <StatTile
-            label="Specific energy"
-            value={sec > 0 ? fmt(sec, 1) : "—"}
-            unit="kWh/km"
-            sub="energy intensity of output"
+            label="Avg power factor"
+            value={avgPfNow > 0 ? avgPfNow.toFixed(2) : "—"}
+            sub={`${runningLines.length} of ${LINES.length} meters on load`}
           />
           <StatTile
             label="Carbon"
@@ -108,10 +102,10 @@ export default function Dashboard() {
             sub="grid factor 0.43 kg/kWh"
           />
           <StatTile
-            label="Avg line speed"
-            value={fmt(avgSpeed, 1)}
-            unit="m/min"
-            sub="across running production lines"
+            label="Meters reporting"
+            value={String(LINES.length)}
+            unit={`/ ${LINES.length}`}
+            sub="7 RS-485 loops via ECU-1051"
           />
         </div>
       </Card>
@@ -228,7 +222,7 @@ export default function Dashboard() {
 
         <Card
           title="Last 7 days"
-          subtitle="Total energy per day, with specific energy trend"
+          subtitle="Total plant energy per day from the meter registers"
         >
           <div className="h-[240px]">
             <ResponsiveContainer>
@@ -252,14 +246,9 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
           <div className="mt-2 text-[11.5px] text-muted">
-            Specific energy this week:{" "}
+            Peak demand this week:{" "}
             <span className="readout text-ink-2">
-              {fmt(
-                week.reduce((s, d) => s + d.energyKwh, 0) /
-                  (week.reduce((s, d) => s + d.productionM, 0) / 1000),
-                1
-              )}{" "}
-              kWh/km avg
+              {fmt(Math.max(...week.map((d) => d.peakKw)))} kW
             </span>
           </div>
         </Card>
@@ -268,8 +257,8 @@ export default function Dashboard() {
       {/* SEC trend + alerts */}
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <Card
-          title="Specific energy — 7 days"
-          subtitle="kWh per km of cable produced; lower is better"
+          title="Peak demand — 7 days"
+          subtitle="Highest hourly plant demand each day, from the meter interval data"
         >
           <div className="h-[200px]">
             <ResponsiveContainer>
@@ -278,13 +267,13 @@ export default function Dashboard() {
                 <XAxis dataKey="label" {...AXIS} />
                 <YAxis {...AXIS} width={52} domain={["auto", "auto"]} />
                 <Tooltip
-                  content={<VTooltip formatter={(v) => `${fmt(v, 1)} kWh/km`} />}
+                  content={<VTooltip formatter={(v) => `${fmt(v)} kW`} />}
                   cursor={{ stroke: "var(--baseline)" }}
                 />
                 <Line
                   type="monotone"
-                  dataKey="secKwhPerKm"
-                  name="SEC"
+                  dataKey="peakKw"
+                  name="Peak demand"
                   stroke="var(--series-3)"
                   strokeWidth={2}
                   dot={{ r: 3.5, fill: "var(--series-3)", stroke: "var(--surface)", strokeWidth: 2 }}
@@ -347,9 +336,8 @@ export default function Dashboard() {
             <thead>
               <tr className="border-b border-ring-1 text-left text-[11px] uppercase tracking-wider text-muted">
                 <th className="py-2 pr-4 font-medium">Date</th>
-                <th className="py-2 pr-4 font-medium text-right">Production</th>
                 <th className="py-2 pr-4 font-medium text-right">Energy kWh</th>
-                <th className="py-2 pr-4 font-medium text-right">kWh/km</th>
+                <th className="py-2 pr-4 font-medium text-right">Peak kW</th>
                 <th className="py-2 pr-4 font-medium text-right">Avg PF</th>
                 <th className="py-2 pr-4 font-medium text-right">CO₂e kg</th>
                 <th className="py-2 font-medium text-right">Cost AED</th>
@@ -364,9 +352,8 @@ export default function Dashboard() {
                   }`}
                 >
                   <td className="py-2 pr-4 font-sans">{d.label}</td>
-                  <td className="py-2 pr-4 text-right">{fmtLength(d.productionM)}</td>
                   <td className="py-2 pr-4 text-right">{fmt(d.energyKwh)}</td>
-                  <td className="py-2 pr-4 text-right">{fmt(d.secKwhPerKm, 1)}</td>
+                  <td className="py-2 pr-4 text-right">{fmt(d.peakKw)}</td>
                   <td className="py-2 pr-4 text-right">{d.avgPf.toFixed(2)}</td>
                   <td className="py-2 pr-4 text-right">{fmt(d.carbonKg)}</td>
                   <td className="py-2 text-right">{fmt(d.costAed)}</td>

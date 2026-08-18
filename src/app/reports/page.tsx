@@ -7,7 +7,7 @@ import {
   type DaySummary,
 } from "@/lib/data";
 import { DIV_COLOR } from "@/components/ui";
-import { fmt, fmtLength } from "@/lib/format";
+import { fmt } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { Card, StatTile } from "@/components/ui";
 
@@ -41,24 +41,24 @@ export default function ReportsPage() {
 
   const days = rangeDays(range, now);
   const energy = days.reduce((s, d) => s + d.energyKwh, 0);
-  const production = days.reduce((s, d) => s + d.productionM, 0);
   const cost = days.reduce((s, d) => s + d.costAed, 0);
   const carbon = days.reduce((s, d) => s + d.carbonKg, 0);
-  const sec = production > 0 ? energy / (production / 1000) : 0;
+  const peak = Math.max(...days.map((d) => d.peakKw), 0);
+  const avgPf = days.length
+    ? days.reduce((s, d) => s + d.avgPf, 0) / days.length
+    : 0;
 
   const perLine = LINES.map((l) => ({
     line: l,
     energy: days.reduce((s, d) => s + d.perLine[l.id].energyKwh, 0),
-    production: days.reduce((s, d) => s + d.perLine[l.id].productionM, 0),
   })).sort((a, b) => b.energy - a.energy);
   const maxLineEnergy = Math.max(...perLine.map((p) => p.energy), 1);
 
   function exportCsv() {
-    const header =
-      "date,production_m,energy_kwh,sec_kwh_per_km,avg_pf,carbon_kg,cost_aed";
+    const header = "date,energy_kwh,peak_kw,avg_pf,carbon_kg,cost_aed";
     const rows = days.map(
       (d) =>
-        `${d.date},${d.productionM},${d.energyKwh},${d.secKwhPerKm},${d.avgPf},${d.carbonKg},${d.costAed}`
+        `${d.date},${d.energyKwh},${d.peakKw},${d.avgPf},${d.carbonKg},${d.costAed}`
     );
     const blob = new Blob([[header, ...rows].join("\n")], {
       type: "text/csv",
@@ -106,12 +106,8 @@ export default function ReportsPage() {
             unit="kWh"
             accent="var(--copper)"
           />
-          <StatTile
-            label="Production"
-            value={fmtLength(production).split(" ")[0]}
-            unit={fmtLength(production).split(" ")[1]}
-          />
-          <StatTile label="Specific energy" value={fmt(sec, 1)} unit="kWh/km" />
+          <StatTile label="Peak demand" value={fmt(peak)} unit="kW" />
+          <StatTile label="Avg power factor" value={avgPf.toFixed(2)} />
           <StatTile label="Carbon" value={fmt(carbon / 1000, 2)} unit="t CO₂e" />
           <StatTile label="Cost" value={fmt(cost)} unit="AED" />
         </div>
@@ -120,7 +116,7 @@ export default function ReportsPage() {
       {/* per-line breakdown */}
       <Card
         title="Per-machine breakdown — all 30 meters"
-        subtitle="Energy share across the range, largest first; production alongside where the machine makes cable"
+        subtitle="Energy share across the range, largest first — from each machine's meter register"
       >
         <div className="flex flex-col gap-3">
           {perLine.map((p) => (
@@ -140,12 +136,9 @@ export default function ReportsPage() {
                   }}
                 />
               </div>
-              <div className="readout w-[190px] text-right text-[12.5px]">
+              <div className="readout w-[110px] text-right text-[12.5px]">
                 <span className="font-semibold">{fmt(p.energy)}</span>
                 <span className="text-muted"> kWh</span>
-                <span className="ml-3 text-ink-2">
-                  {p.production > 0 ? fmtLength(p.production) : "—"}
-                </span>
               </div>
             </div>
           ))}
@@ -162,9 +155,8 @@ export default function ReportsPage() {
             <thead>
               <tr className="border-b border-ring-1 text-left text-[11px] uppercase tracking-wider text-muted">
                 <th className="py-2 pr-4 font-medium">Date</th>
-                <th className="py-2 pr-4 text-right font-medium">Production</th>
                 <th className="py-2 pr-4 text-right font-medium">Energy kWh</th>
-                <th className="py-2 pr-4 text-right font-medium">kWh/km</th>
+                <th className="py-2 pr-4 text-right font-medium">Peak kW</th>
                 <th className="py-2 pr-4 text-right font-medium">Avg PF</th>
                 <th className="py-2 pr-4 text-right font-medium">CO₂e kg</th>
                 <th className="py-2 text-right font-medium">Cost AED</th>
@@ -177,9 +169,8 @@ export default function ReportsPage() {
                     {d.date}{" "}
                     <span className="text-muted">({d.label.split(" ")[0]})</span>
                   </td>
-                  <td className="py-2 pr-4 text-right">{fmtLength(d.productionM)}</td>
                   <td className="py-2 pr-4 text-right">{fmt(d.energyKwh)}</td>
-                  <td className="py-2 pr-4 text-right">{fmt(d.secKwhPerKm, 1)}</td>
+                  <td className="py-2 pr-4 text-right">{fmt(d.peakKw)}</td>
                   <td className="py-2 pr-4 text-right">{d.avgPf.toFixed(2)}</td>
                   <td className="py-2 pr-4 text-right">{fmt(d.carbonKg)}</td>
                   <td className="py-2 text-right">{fmt(d.costAed)}</td>
@@ -189,11 +180,8 @@ export default function ReportsPage() {
             <tfoot className="readout">
               <tr className="text-copper">
                 <td className="py-2.5 pr-4 font-sans font-semibold">Total</td>
-                <td className="py-2.5 pr-4 text-right font-semibold">
-                  {fmtLength(production)}
-                </td>
                 <td className="py-2.5 pr-4 text-right font-semibold">{fmt(energy)}</td>
-                <td className="py-2.5 pr-4 text-right font-semibold">{fmt(sec, 1)}</td>
+                <td className="py-2.5 pr-4 text-right font-semibold">{fmt(peak)}</td>
                 <td className="py-2.5 pr-4 text-right text-muted">—</td>
                 <td className="py-2.5 pr-4 text-right font-semibold">{fmt(carbon)}</td>
                 <td className="py-2.5 text-right font-semibold">{fmt(cost)}</td>

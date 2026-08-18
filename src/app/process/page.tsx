@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { DIVISIONS, LINES, lineById, liveReading, type LiveReading } from "@/lib/data";
-import { fmt, fmtLength } from "@/lib/format";
+import { fmt } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { AXIS, Card, DIV_COLOR, GRID, VTooltip } from "@/components/ui";
 
@@ -36,8 +36,6 @@ export default function ProcessPage() {
       kw: liveReading(line, t).kw,
     };
   });
-
-  const diamErr = r.diameterMm - r.diameterSetMm;
 
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
@@ -169,84 +167,26 @@ export default function ProcessPage() {
           </div>
         </Card>
 
-        {/* PLC / production panel */}
+        {/* per-machine energy panel — meter data only */}
         <Card
-          title={line.maxSpeed > 0 ? `${line.name} — PLC` : `${line.name} — utility`}
-          subtitle={
-            line.maxSpeed > 0
-              ? "Production data from the line controller"
-              : `${line.machine} · energy only (no production counters)`
-          }
+          title={`${line.name} — energy`}
+          subtitle={`${line.machine} · ${line.meter}`}
         >
           <div className="flex flex-col gap-3">
-            {line.maxSpeed > 0 && (
             <div className="grid grid-cols-2 gap-3">
-              <Meter
-                label="Line speed"
-                value={r.speed.toFixed(1)}
-                unit="m/min"
-                strong
-              />
-              <Meter
-                label="Speed setpoint"
-                value={r.speedSetpoint.toFixed(1)}
-                unit="m/min"
-              />
-              <Meter
-                label="Diameter"
-                value={r.diameterMm.toFixed(3)}
-                unit="mm"
-                strong
-              />
-              <Meter
-                label="Set point"
-                value={r.diameterSetMm.toFixed(3)}
-                unit="mm"
-              />
-            </div>
-            )}
-
-            {line.maxSpeed > 0 && (
-            <div
-              className={`flex items-baseline justify-between rounded-lg border px-3.5 py-2.5 ${
-                Math.abs(diamErr) > r.diameterSetMm * 0.0015
-                  ? "border-warn/40 bg-warn/5"
-                  : "border-ring-1 bg-surface-2"
-              }`}
-            >
-              <span className="text-[11px] uppercase tracking-wider text-muted">
-                Diameter error
-              </span>
-              <span className="readout text-[14px] font-semibold">
-                {diamErr >= 0 ? "+" : ""}
-                {(diamErr * 1000).toFixed(0)}{" "}
-                <span className="text-[11px] text-muted">µm</span>
-              </span>
-            </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              {line.maxSpeed > 0 && (
-                <Meter
-                  label="Length today"
-                  value={fmtLength(r.lengthTodayM).split(" ")[0]}
-                  unit={fmtLength(r.lengthTodayM).split(" ")[1]}
-                />
-              )}
               <Meter
                 label="Energy today"
                 value={fmt(r.energyTodayKwh)}
                 unit="kWh"
+                strong
               />
-              {line.maxSpeed === 0 && (
-                <Meter
-                  label="Duty"
-                  value={r.running ? "On load" : "Standby"}
-                />
-              )}
+              <Meter
+                label="Status"
+                value={r.running ? "On load" : "Standby"}
+              />
             </div>
 
-            <div className="h-[150px]">
+            <div className="h-[220px]">
               <ResponsiveContainer>
                 <AreaChart
                   data={powerTrail}
@@ -278,7 +218,7 @@ export default function ProcessPage() {
               </ResponsiveContainer>
             </div>
             <div className="-mt-1 text-[11px] text-muted">
-              Active power, last 3 hours
+              Active power, last 3 hours — from meter interval readings
             </div>
           </div>
         </Card>

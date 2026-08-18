@@ -233,33 +233,6 @@ export default function TrendsPage() {
         </Card>
       </div>
 
-      <Card
-        title="Specific energy — 30 days"
-        subtitle="kWh per km of finished cable; the number that decides margin"
-      >
-        <div className="h-[200px]">
-          <ResponsiveContainer>
-            <LineChart data={days} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-              <CartesianGrid {...GRID} />
-              <XAxis dataKey="label" {...AXIS} tickFormatter={tick} />
-              <YAxis {...AXIS} width={56} domain={["auto", "auto"]} />
-              <Tooltip
-                content={<VTooltip formatter={(v) => `${fmt(v, 1)} kWh/km`} />}
-                cursor={{ stroke: "var(--baseline)" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="secKwhPerKm"
-                name="SEC"
-                stroke="var(--series-3)"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
     </div>
   );
 }

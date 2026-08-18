@@ -102,11 +102,9 @@ export interface HourRecord {
   line: string;
   date: string; // YYYY-MM-DD local
   hour: number; // 0-23
-  running: boolean;
-  uptime: number; // 0..1 fraction of the hour producing
+  running: boolean; // inferred from load level — meters only
+  uptime: number; // 0..1 fraction of the hour on load
   energyKwh: number;
-  productionM: number;
-  avgSpeed: number; // m/min while running
   pf: number;
 }
 
@@ -142,10 +140,6 @@ export function hourRecord(line: Line, d: Date, hour: number): HourRecord {
   const energyKwh =
     line.ratedKw * load * uptime + line.idleKw * (1 - uptime) * (scheduled ? 1 : 0.4);
 
-  const speedFactor = 0.8 + r() * 0.17;
-  const avgSpeed = running && line.maxSpeed > 0 ? line.maxSpeed * speedFactor : 0;
-  const productionM = avgSpeed * 60 * uptime;
-
   const pf = running ? 0.84 + r() * 0.08 : scheduled ? 0.58 + r() * 0.1 : 0.5;
 
   return {
@@ -155,8 +149,6 @@ export function hourRecord(line: Line, d: Date, hour: number): HourRecord {
     running,
     uptime,
     energyKwh: round2(energyKwh),
-    productionM: Math.round(productionM),
-    avgSpeed: round2(avgSpeed),
     pf: round3(pf),
   };
 }
@@ -165,12 +157,11 @@ export interface DaySummary {
   date: string;
   label: string; // e.g. "Mon 11"
   energyKwh: number;
-  productionM: number;
-  secKwhPerKm: number; // specific energy consumption
+  peakKw: number; // max hourly plant demand (kWh over 1 h ≈ avg kW)
   avgPf: number;
   carbonKg: number;
   costAed: number;
-  perLine: Record<string, { energyKwh: number; productionM: number }>;
+  perLine: Record<string, { energyKwh: number }>;
 }
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -178,32 +169,29 @@ const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 /** Aggregate a full (or partial, up to `untilHour`) day across all lines. */
 export function daySummary(d: Date, untilHour = 24): DaySummary {
   let energy = 0;
-  let production = 0;
   let pfSum = 0;
   let pfN = 0;
+  const hourTotals = new Array(untilHour).fill(0);
   const perLine: DaySummary["perLine"] = {};
   for (const line of LINES) {
     let le = 0;
-    let lp = 0;
     for (let h = 0; h < untilHour; h++) {
       const rec = hourRecord(line, d, h);
       le += rec.energyKwh;
-      lp += rec.productionM;
+      hourTotals[h] += rec.energyKwh;
       if (rec.running) {
         pfSum += rec.pf;
         pfN++;
       }
     }
-    perLine[line.id] = { energyKwh: round2(le), productionM: Math.round(lp) };
+    perLine[line.id] = { energyKwh: round2(le) };
     energy += le;
-    production += lp;
   }
   return {
     date: dateKey(d),
     label: `${DOW[d.getDay()]} ${d.getDate()}`,
     energyKwh: round2(energy),
-    productionM: Math.round(production),
-    secKwhPerKm: production > 0 ? round2(energy / (production / 1000)) : 0,
+    peakKw: round2(Math.max(0, ...hourTotals)),
     avgPf: pfN > 0 ? round3(pfSum / pfN) : 0,
     carbonKg: round2(energy * CARBON_KG_PER_KWH),
     costAed: round2(energy * TARIFF_AED_PER_KWH),
@@ -235,11 +223,6 @@ export interface LiveReading {
   lineV: [number, number, number]; // L-L volts U12 U23 U31
   imbalancePct: number;
   freqHz: number;
-  speed: number; // m/min
-  speedSetpoint: number;
-  diameterMm: number;
-  diameterSetMm: number;
-  lengthTodayM: number; // cable length counter since midnight
   energyTodayKwh: number;
   totalizerKwh: number; // lifetime accumulated energy register
 }
@@ -252,12 +235,6 @@ function smooth(t: number, period: number, phase: number): number {
     0.1 * Math.sin((t / (period * 0.11)) * 2 * Math.PI + phase * 5.1)
   );
 }
-
-const DIAMETER_SET: Record<string, number> = {
-  rbd1: 2.6, rbd2: 2.6, mwd: 0.9, stra37: 16.8, skip16: 8.4,
-  assem1600: 34.0, e12045: 12.5, e9045: 9.8, dt2600: 42.0, e1206012: 28.5,
-  arm72b: 46.5, arm48b: 38.2, casting: 8.0, rbdp: 2.2,
-};
 
 /** Smooth live operating point for a line at wall-clock time `tMs`. */
 export function liveReading(line: Line, tMs: number): LiveReading {
@@ -305,26 +282,12 @@ export function liveReading(line: Line, tMs: number): LiveReading {
   const iMean = (currents[0] + currents[1] + currents[2]) / 3;
   const imbalancePct = iMean > 0 ? round2(((iMax - iMean) / iMean) * 100) : 0;
 
-  const speedSetpoint = round2(line.maxSpeed * 0.85);
-  const speed = running
-    ? round2(speedSetpoint * (1 + 0.015 * smooth(t, 23, phase + 3)))
-    : 0;
-
-  const diameterSetMm = DIAMETER_SET[line.id] ?? 0;
-  const diameterMm = running
-    ? round3(diameterSetMm * (1 + 0.0018 * smooth(t, 17, phase + 4)))
-    : diameterSetMm;
-
-  // Counters since midnight: completed hours + fraction of the current hour.
-  let lengthTodayM = 0;
+  // Energy register since midnight: completed hours + fraction of the current hour.
   let energyTodayKwh = 0;
   for (let h = 0; h < d.getHours(); h++) {
-    const r = hourRecord(line, d, h);
-    lengthTodayM += r.productionM;
-    energyTodayKwh += r.energyKwh;
+    energyTodayKwh += hourRecord(line, d, h).energyKwh;
   }
   const frac = (d.getMinutes() * 60 + d.getSeconds()) / 3600;
-  lengthTodayM += rec.productionM * frac;
   energyTodayKwh += rec.energyKwh * frac;
 
   // Lifetime register: seeded base + days since epoch-ish anchor.
@@ -345,11 +308,6 @@ export function liveReading(line: Line, tMs: number): LiveReading {
     lineV,
     imbalancePct,
     freqHz: round2(50 + 0.02 * smooth(t, 41, phase + 5)),
-    speed,
-    speedSetpoint,
-    diameterMm,
-    diameterSetMm,
-    lengthTodayM: Math.round(lengthTodayM),
     energyTodayKwh: round2(energyTodayKwh),
     totalizerKwh: Math.round(totalizerKwh),
   };
@@ -392,17 +350,7 @@ export function todaysAlerts(now: Date): PlantAlert[] {
           severity: "serious",
           line: line.name,
           title: "Idle-hour energy draw",
-          detail: `${rec.energyKwh.toFixed(0)} kWh drawn with zero production this hour`,
-          at,
-        });
-      }
-      if (rec.running && rec.uptime < 0.4) {
-        alerts.push({
-          id: `${line.id}-stop-${h}`,
-          severity: "warning",
-          line: line.name,
-          title: "Unplanned stop",
-          detail: `Line down ${Math.round((1 - rec.uptime) * 60)} min of the hour`,
+          detail: `${rec.energyKwh.toFixed(0)} kWh drawn while the meter shows no load pattern`,
           at,
         });
       }
