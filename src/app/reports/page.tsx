@@ -6,16 +6,10 @@ import {
   daySummary,
   type DaySummary,
 } from "@/lib/data";
+import { DIV_COLOR } from "@/components/ui";
 import { fmt, fmtLength } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { Card, StatTile } from "@/components/ui";
-
-const SERIES = [
-  "var(--series-1)",
-  "var(--series-2)",
-  "var(--series-3)",
-  "var(--series-4)",
-];
 
 const RANGES = [
   { key: "7d", label: "Last 7 days", days: 7 },
@@ -56,7 +50,7 @@ export default function ReportsPage() {
     line: l,
     energy: days.reduce((s, d) => s + d.perLine[l.id].energyKwh, 0),
     production: days.reduce((s, d) => s + d.perLine[l.id].productionM, 0),
-  }));
+  })).sort((a, b) => b.energy - a.energy);
   const maxLineEnergy = Math.max(...perLine.map((p) => p.energy), 1);
 
   function exportCsv() {
@@ -125,29 +119,33 @@ export default function ReportsPage() {
 
       {/* per-line breakdown */}
       <Card
-        title="Per-line breakdown"
-        subtitle="Energy share across the range; production alongside"
+        title="Per-machine breakdown — all 30 meters"
+        subtitle="Energy share across the range, largest first; production alongside where the machine makes cable"
       >
         <div className="flex flex-col gap-3">
-          {perLine.map((p, i) => (
-            <div key={p.line.id} className="grid grid-cols-[110px_1fr_auto] items-center gap-3">
-              <div>
-                <div className="text-[12.5px] font-semibold">{p.line.name}</div>
-                <div className="text-[10.5px] text-muted">{p.line.machine}</div>
+          {perLine.map((p) => (
+            <div key={p.line.id} className="grid grid-cols-[150px_1fr_auto] items-center gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-[12.5px] font-semibold">{p.line.name}</div>
+                <div className="truncate text-[10.5px] text-muted">
+                  {p.line.machine} · {p.line.loop}
+                </div>
               </div>
-              <div className="h-4 overflow-hidden rounded-[4px] bg-surface-2">
+              <div className="h-3.5 overflow-hidden rounded-[4px] bg-surface-2">
                 <div
                   className="h-full rounded-[4px]"
                   style={{
-                    width: `${(p.energy / maxLineEnergy) * 100}%`,
-                    background: SERIES[i],
+                    width: `${Math.max(1, (p.energy / maxLineEnergy) * 100)}%`,
+                    background: DIV_COLOR[p.line.division],
                   }}
                 />
               </div>
-              <div className="readout text-right text-[12.5px]">
+              <div className="readout w-[190px] text-right text-[12.5px]">
                 <span className="font-semibold">{fmt(p.energy)}</span>
                 <span className="text-muted"> kWh</span>
-                <span className="ml-3 text-ink-2">{fmtLength(p.production)}</span>
+                <span className="ml-3 text-ink-2">
+                  {p.production > 0 ? fmtLength(p.production) : "—"}
+                </span>
               </div>
             </div>
           ))}

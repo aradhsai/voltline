@@ -88,7 +88,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <div className="text-[11.5px] text-muted">Jebel Ali · Cable Division</div>
           </div>
           <div className="mt-4 text-[10.5px] leading-relaxed text-muted">
-            4 lines · RS-485 via ECU-1051
+            30 meters · 7 RS-485 loops · ECU-1051
             <br />
             Poll interval 2 s
           </div>

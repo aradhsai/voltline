@@ -4,10 +4,15 @@
 // computes identical history. "Live" readings are smooth functions of wall
 // time layered over the current hour's operating point.
 
+export type DivisionId = "cable" | "crt" | "bsw" | "swg" | "picc";
+
 export interface Line {
   id: string;
   name: string;
   machine: string;
+  division: DivisionId;
+  loop: string; // RS-485 loop / gateway, e.g. "GW-1"
+  meter: string; // meter make/model on this machine
   ratedKw: number; // nameplate demand at full load
   idleKw: number; // heaters / drives idling
   maxSpeed: number; // m/min line speed
@@ -17,51 +22,49 @@ export interface Line {
 }
 
 export const LINES: Line[] = [
-  {
-    id: "rbd1",
-    name: "RBD-1",
-    machine: "Rod breakdown & wire draw · PAC3200 · Loop GW-1",
-    ratedKw: 110,
-    idleKw: 8,
-    maxSpeed: 18,
-    product: "8 mm Cu rod → 2.6 mm wire",
-    continuous: false,
-    imbalance: [1.03, 0.99, 0.98],
-  },
-  {
-    id: "mwd",
-    name: "MWD",
-    machine: "Multi-wire draw · Trinity NF-29 · Loop GW-1",
-    ratedKw: 85,
-    idleKw: 6,
-    maxSpeed: 32,
-    product: "2.6 mm → 0.9 mm × 8 ends",
-    continuous: false,
-    imbalance: [0.98, 1.02, 1.0],
-  },
-  {
-    id: "ext120",
-    name: "120/60/120",
-    machine: "Insulation & sheathing extrusion · PAC3200 · Loop GW-2",
-    ratedKw: 75,
-    idleKw: 12,
-    maxSpeed: 11,
-    product: "PVC / XLPE insulated cores",
-    continuous: true,
-    imbalance: [1.01, 1.0, 0.99],
-  },
-  {
-    id: "dt2600",
-    name: "2600DT",
-    machine: "2600 mm drum twister · Selec MFM384 · Loop GW-2",
-    ratedKw: 95,
-    idleKw: 7,
-    maxSpeed: 26,
-    product: "3-core laid-up LV cable",
-    continuous: false,
-    imbalance: [0.97, 1.0, 1.03],
-  },
+  { id: "rbd1", name: "RBD-1", machine: "Rod breakdown & wire draw", division: "cable", loop: "GW-1", meter: "Siemens PAC3200", ratedKw: 110, idleKw: 8, maxSpeed: 18, product: "8 mm Cu rod → 2.6 mm wire", continuous: false, imbalance: [1.03, 0.99, 0.98] },
+  { id: "rbd2", name: "RBD-2", machine: "Rod breakdown & wire draw", division: "cable", loop: "GW-1", meter: "Siemens PAC3200", ratedKw: 110, idleKw: 8, maxSpeed: 18, product: "8 mm Cu rod → 2.6 mm wire", continuous: false, imbalance: [0.99, 1.02, 0.99] },
+  { id: "mwd", name: "MWD", machine: "Multi-wire draw", division: "cable", loop: "GW-1", meter: "Trinity NF-29", ratedKw: 85, idleKw: 6, maxSpeed: 32, product: "2.6 mm → 0.9 mm × 8 ends", continuous: false, imbalance: [0.98, 1.02, 1.0] },
+  { id: "stra37", name: "37 Str.", machine: "37-bobbin strander", division: "cable", loop: "GW-1", meter: "Selec MFM384", ratedKw: 70, idleKw: 5, maxSpeed: 40, product: "185 mm² Cu conductor", continuous: false, imbalance: [1.01, 0.98, 1.01] },
+  { id: "skip16", name: "1+6 Skip", machine: "1+6 skip strander", division: "cable", loop: "GW-1", meter: "Selec MFM384", ratedKw: 40, idleKw: 3, maxSpeed: 30, product: "25 mm² stranded conductor", continuous: false, imbalance: [1.0, 1.01, 0.99] },
+  { id: "assem1600", name: "1600mm Assem.", machine: "1600 mm assembly / lay-up", division: "cable", loop: "GW-2", meter: "Acrel ACR", ratedKw: 55, idleKw: 4, maxSpeed: 20, product: "multi-core lay-up", continuous: false, imbalance: [0.99, 1.0, 1.01] },
+  { id: "e12045", name: "120/45", machine: "Insulation extruder", division: "cable", loop: "GW-2", meter: "Siemens PAC3200", ratedKw: 60, idleKw: 9, maxSpeed: 14, product: "PVC insulated cores", continuous: false, imbalance: [1.02, 0.99, 0.99] },
+  { id: "e9045", name: "90/45", machine: "Insulation extruder", division: "cable", loop: "GW-2", meter: "Siemens PAC3200", ratedKw: 50, idleKw: 8, maxSpeed: 16, product: "PVC insulated cores", continuous: false, imbalance: [0.98, 1.01, 1.01] },
+  { id: "dt2600", name: "2600DT", machine: "2600 mm drum twister", division: "cable", loop: "GW-2", meter: "Selec MFM384", ratedKw: 95, idleKw: 7, maxSpeed: 26, product: "3-core laid-up LV cable", continuous: false, imbalance: [0.97, 1.0, 1.03] },
+  { id: "e1206012", name: "120/60/120", machine: "Insulation & sheathing extrusion", division: "cable", loop: "GW-2", meter: "Siemens PAC3200", ratedKw: 75, idleKw: 12, maxSpeed: 11, product: "PVC / XLPE insulated cores", continuous: true, imbalance: [1.01, 1.0, 0.99] },
+  { id: "arm72b", name: "72B Armouring", machine: "72-bobbin armouring", division: "cable", loop: "GW-3", meter: "Selec MFM384", ratedKw: 45, idleKw: 4, maxSpeed: 22, product: "SWA over bedding", continuous: false, imbalance: [1.0, 0.99, 1.01] },
+  { id: "arm48b", name: "48B Armouring", machine: "48-bobbin armouring", division: "cable", loop: "GW-3", meter: "Selec MFM384", ratedKw: 40, idleKw: 4, maxSpeed: 24, product: "SWA over bedding", continuous: false, imbalance: [1.01, 1.0, 0.99] },
+  { id: "boiler1", name: "Boiler-1", machine: "Process boiler", division: "cable", loop: "GW-3", meter: "AGAM AGM13H", ratedKw: 55, idleKw: 2, maxSpeed: 0, product: "process steam", continuous: false, imbalance: [1.0, 1.0, 1.0] },
+  { id: "boiler2", name: "Boiler-2", machine: "Process boiler", division: "cable", loop: "GW-3", meter: "Selec MFM384", ratedKw: 55, idleKw: 2, maxSpeed: 0, product: "process steam", continuous: false, imbalance: [1.0, 1.01, 0.99] },
+  { id: "comp90", name: "Compressor 90+", machine: "Air compressor", division: "cable", loop: "GW-4", meter: "Selec MFM384", ratedKw: 90, idleKw: 9, maxSpeed: 0, product: "compressed air 7.5 bar", continuous: true, imbalance: [1.0, 0.99, 1.01] },
+  { id: "compg111", name: "Compressor G111", machine: "Air compressor", division: "cable", loop: "GW-4", meter: "Selec MFM384", ratedKw: 75, idleKw: 8, maxSpeed: 0, product: "compressed air 7.5 bar", continuous: true, imbalance: [0.99, 1.01, 1.0] },
+  { id: "comp45", name: "Compressor 45", machine: "Air compressor", division: "cable", loop: "GW-4", meter: "AGAM AGM13H", ratedKw: 45, idleKw: 5, maxSpeed: 0, product: "compressed air 7.5 bar", continuous: true, imbalance: [1.01, 1.0, 0.99] },
+  { id: "pump", name: "Pump House", machine: "Cooling water pumps", division: "cable", loop: "GW-4", meter: "Selec MFM384 (new)", ratedKw: 20, idleKw: 2, maxSpeed: 0, product: "process cooling water", continuous: true, imbalance: [1.0, 1.0, 1.0] },
+  { id: "chiller1", name: "Chiller-1", machine: "Water-cooled chiller", division: "cable", loop: "GW-5", meter: "AGAM AGM13H", ratedKw: 140, idleKw: 12, maxSpeed: 0, product: "chilled water", continuous: true, imbalance: [1.0, 0.99, 1.01] },
+  { id: "chiller2", name: "Chiller-2", machine: "Water-cooled chiller", division: "cable", loop: "GW-5", meter: "AGAM AGM13H", ratedKw: 140, idleKw: 12, maxSpeed: 0, product: "chilled water", continuous: true, imbalance: [0.99, 1.0, 1.01] },
+  { id: "chiller3", name: "Chiller-3", machine: "Water-cooled chiller", division: "cable", loop: "GW-5", meter: "AGAM AGM13H", ratedKw: 140, idleKw: 12, maxSpeed: 0, product: "chilled water", continuous: true, imbalance: [1.01, 1.0, 0.99] },
+  { id: "oven1", name: "Heating Oven-1", machine: "Annealing oven", division: "crt", loop: "GW-6", meter: "AGAM AGM13H", ratedKw: 65, idleKw: 3, maxSpeed: 0, product: "conductor annealing", continuous: false, imbalance: [1.0, 1.0, 1.0] },
+  { id: "oven2", name: "Heating Oven-2", machine: "Annealing oven", division: "crt", loop: "GW-6", meter: "AGAM AGM13H", ratedKw: 65, idleKw: 3, maxSpeed: 0, product: "conductor annealing", continuous: false, imbalance: [1.0, 1.01, 0.99] },
+  { id: "oven3", name: "Heating Oven-3", machine: "Annealing oven", division: "crt", loop: "GW-6", meter: "AGAM AGM13H", ratedKw: 65, idleKw: 3, maxSpeed: 0, product: "conductor annealing", continuous: false, imbalance: [0.99, 1.0, 1.01] },
+  { id: "casting", name: "Casting Machine", machine: "Cu rod casting", division: "crt", loop: "GW-6", meter: "Selec MFM384 (new)", ratedKw: 75, idleKw: 6, maxSpeed: 12, product: "8 mm Cu rod", continuous: false, imbalance: [1.02, 0.99, 0.99] },
+  { id: "powder", name: "Powder Coating", machine: "Powder coating line", division: "bsw", loop: "GW-7", meter: "Selec MFM376", ratedKw: 35, idleKw: 3, maxSpeed: 0, product: "coated steel wire", continuous: false, imbalance: [1.0, 1.0, 1.0] },
+  { id: "shotblast", name: "Shot Blast", machine: "Shot blasting", division: "swg", loop: "GW-7", meter: "AGAM AGM13H", ratedKw: 30, idleKw: 2, maxSpeed: 0, product: "surface prep", continuous: false, imbalance: [1.0, 1.01, 0.99] },
+  { id: "amada2510", name: "Amada 2510", machine: "CNC punching", division: "swg", loop: "GW-7", meter: "Selec MFM384 (new)", ratedKw: 25, idleKw: 2, maxSpeed: 0, product: "sheet fabrication", continuous: false, imbalance: [1.0, 1.0, 1.0] },
+  { id: "amada3612", name: "Amada 3612", machine: "CNC punching", division: "swg", loop: "GW-7", meter: "Selec MFM384 (new)", ratedKw: 25, idleKw: 2, maxSpeed: 0, product: "sheet fabrication", continuous: false, imbalance: [0.99, 1.0, 1.01] },
+  { id: "rbdp", name: "RBD", machine: "PICC wire draw", division: "picc", loop: "GW-7", meter: "AGAM AGM13H", ratedKw: 50, idleKw: 4, maxSpeed: 16, product: "Cu wire draw", continuous: false, imbalance: [1.0, 0.99, 1.01] },
 ];
+
+export const DIVISIONS: { id: DivisionId; name: string }[] = [
+  { id: "cable", name: "Cable" },
+  { id: "crt", name: "CRT" },
+  { id: "bsw", name: "BSW" },
+  { id: "swg", name: "SWG" },
+  { id: "picc", name: "PICC" },
+];
+
+export function linesInDivision(id: DivisionId): Line[] {
+  return LINES.filter((l) => l.division === id);
+}
 
 export const TARIFF_AED_PER_KWH = 0.45;
 export const CARBON_KG_PER_KWH = 0.43;
@@ -123,7 +126,7 @@ export function hourRecord(line: Line, d: Date, hour: number): HourRecord {
   // Shift pattern: two production shifts 06-14 / 14-22; continuous lines run
   // the night shift too. Sunday is planned maintenance (short morning run).
   let scheduled: boolean;
-  if (dow === 0) scheduled = hour >= 8 && hour < 12 && line.continuous;
+  if (dow === 0) scheduled = line.continuous;
   else if (line.continuous) scheduled = true;
   else scheduled = hour >= 6 && hour < 22;
 
@@ -140,7 +143,7 @@ export function hourRecord(line: Line, d: Date, hour: number): HourRecord {
     line.ratedKw * load * uptime + line.idleKw * (1 - uptime) * (scheduled ? 1 : 0.4);
 
   const speedFactor = 0.8 + r() * 0.17;
-  const avgSpeed = running ? line.maxSpeed * speedFactor : 0;
+  const avgSpeed = running && line.maxSpeed > 0 ? line.maxSpeed * speedFactor : 0;
   const productionM = avgSpeed * 60 * uptime;
 
   const pf = running ? 0.84 + r() * 0.08 : scheduled ? 0.58 + r() * 0.1 : 0.5;
@@ -251,10 +254,9 @@ function smooth(t: number, period: number, phase: number): number {
 }
 
 const DIAMETER_SET: Record<string, number> = {
-  rbd1: 2.6,
-  mwd: 0.9,
-  ext120: 28.5,
-  dt2600: 42.0,
+  rbd1: 2.6, rbd2: 2.6, mwd: 0.9, stra37: 16.8, skip16: 8.4,
+  assem1600: 34.0, e12045: 12.5, e9045: 9.8, dt2600: 42.0, e1206012: 28.5,
+  arm72b: 46.5, arm48b: 38.2, casting: 8.0, rbdp: 2.2,
 };
 
 /** Smooth live operating point for a line at wall-clock time `tMs`. */
@@ -308,7 +310,7 @@ export function liveReading(line: Line, tMs: number): LiveReading {
     ? round2(speedSetpoint * (1 + 0.015 * smooth(t, 23, phase + 3)))
     : 0;
 
-  const diameterSetMm = DIAMETER_SET[line.id];
+  const diameterSetMm = DIAMETER_SET[line.id] ?? 0;
   const diameterMm = running
     ? round3(diameterSetMm * (1 + 0.0018 * smooth(t, 17, phase + 4)))
     : diameterSetMm;

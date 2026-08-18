@@ -10,17 +10,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LINES, lineById, liveReading, type LiveReading } from "@/lib/data";
+import { DIVISIONS, LINES, lineById, liveReading, type LiveReading } from "@/lib/data";
 import { fmt, fmtLength } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
-import { AXIS, Card, GRID, VTooltip } from "@/components/ui";
+import { AXIS, Card, DIV_COLOR, GRID, VTooltip } from "@/components/ui";
 
 const PHASE_COLORS = ["var(--series-1)", "var(--series-4)", "var(--series-3)"];
 const PHASE_NAMES = ["L1", "L2", "L3"];
 
 export default function ProcessPage() {
   const now = useNow(2000);
-  const [selected, setSelected] = useState("ext120");
+  const [selected, setSelected] = useState("e1206012");
   if (!now) return <Skeleton />;
 
   const readings = LINES.map((l) => liveReading(l, now.getTime()));
@@ -41,54 +41,55 @@ export default function ProcessPage() {
 
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
-      {/* line selector */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {LINES.map((l, i) => {
-          const lr = readings[i];
-          const active = l.id === selected;
-          return (
-            <button
-              key={l.id}
-              onClick={() => setSelected(l.id)}
-              className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                active
-                  ? "border-copper bg-surface"
-                  : "border-ring-1 bg-surface hover:border-ink-2/30"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-display text-[14px] font-semibold">
-                  {l.name}
-                </span>
+      {/* machine selector — grouped by division */}
+      <Card>
+        <div className="flex flex-col gap-3">
+          {DIVISIONS.map((dv) => (
+            <div key={dv.id} className="flex flex-wrap items-center gap-1.5">
+              <span className="flex w-[52px] shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
                 <span
-                  className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider ${
-                    lr.running ? "text-good" : "text-muted"
-                  }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      lr.running ? "live-dot bg-good" : "bg-baseline"
-                    }`}
-                  />
-                  {lr.running ? "Running" : "Idle"}
-                </span>
-              </div>
-              <div className="mt-0.5 truncate text-[11px] text-muted">
-                {l.machine}
-              </div>
-              <div className="readout mt-1.5 text-[15px] font-semibold">
-                {fmt(lr.kw)} <span className="text-[11px] text-muted">kW</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+                  className="inline-block h-2 w-2 rounded-[2px]"
+                  style={{ background: DIV_COLOR[dv.id] }}
+                />
+                {dv.name}
+              </span>
+              {LINES.map((l, i) => ({ l, i }))
+                .filter(({ l }) => l.division === dv.id)
+                .map(({ l, i }) => {
+                  const lr = readings[i];
+                  const active = l.id === selected;
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => setSelected(l.id)}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors ${
+                        active
+                          ? "border-copper bg-surface font-semibold text-copper"
+                          : "border-ring-1 bg-surface text-ink-2 hover:text-ink"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          lr.running ? "live-dot bg-good" : "bg-baseline"
+                        }`}
+                      />
+                      {l.name}
+                      <span className="readout text-[11px] text-muted">
+                        {Math.round(lr.kw)}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {/* electrical panel */}
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
         <Card
           title={`${line.name} — energy meter`}
-          subtitle={`Modbus RTU via ECU-1051 · ${line.product}`}
+          subtitle={`${line.meter} · Modbus RTU · loop ${line.loop} via ECU-1051 · ${line.product}`}
           right={<Waveform reading={r} />}
         >
           {/* phase columns */}
@@ -170,10 +171,15 @@ export default function ProcessPage() {
 
         {/* PLC / production panel */}
         <Card
-          title={`${line.name} — PLC`}
-          subtitle="Production data from the line controller"
+          title={line.maxSpeed > 0 ? `${line.name} — PLC` : `${line.name} — utility`}
+          subtitle={
+            line.maxSpeed > 0
+              ? "Production data from the line controller"
+              : `${line.machine} · energy only (no production counters)`
+          }
         >
           <div className="flex flex-col gap-3">
+            {line.maxSpeed > 0 && (
             <div className="grid grid-cols-2 gap-3">
               <Meter
                 label="Line speed"
@@ -198,7 +204,9 @@ export default function ProcessPage() {
                 unit="mm"
               />
             </div>
+            )}
 
+            {line.maxSpeed > 0 && (
             <div
               className={`flex items-baseline justify-between rounded-lg border px-3.5 py-2.5 ${
                 Math.abs(diamErr) > r.diameterSetMm * 0.0015
@@ -215,18 +223,27 @@ export default function ProcessPage() {
                 <span className="text-[11px] text-muted">µm</span>
               </span>
             </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
-              <Meter
-                label="Length today"
-                value={fmtLength(r.lengthTodayM).split(" ")[0]}
-                unit={fmtLength(r.lengthTodayM).split(" ")[1]}
-              />
+              {line.maxSpeed > 0 && (
+                <Meter
+                  label="Length today"
+                  value={fmtLength(r.lengthTodayM).split(" ")[0]}
+                  unit={fmtLength(r.lengthTodayM).split(" ")[1]}
+                />
+              )}
               <Meter
                 label="Energy today"
                 value={fmt(r.energyTodayKwh)}
                 unit="kWh"
               />
+              {line.maxSpeed === 0 && (
+                <Meter
+                  label="Duty"
+                  value={r.running ? "On load" : "Standby"}
+                />
+              )}
             </div>
 
             <div className="h-[150px]">

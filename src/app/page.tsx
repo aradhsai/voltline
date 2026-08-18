@@ -14,6 +14,7 @@ import {
   AreaChart,
 } from "recharts";
 import {
+  DIVISIONS,
   LINES,
   daySummary,
   hourRecord,
@@ -25,14 +26,7 @@ import {
 } from "@/lib/data";
 import { fmt, fmtLength } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
-import { AXIS, Card, GRID, StatTile, VTooltip } from "@/components/ui";
-
-const SERIES = [
-  "var(--series-1)",
-  "var(--series-2)",
-  "var(--series-3)",
-  "var(--series-4)",
-];
+import { AXIS, Card, DIV_COLOR, GRID, StatTile, VTooltip } from "@/components/ui";
 
 export default function Dashboard() {
   const now = useNow(2000);
@@ -43,9 +37,13 @@ export default function Dashboard() {
   const energyToday = live.reduce((s, r) => s + r.energyTodayKwh, 0);
   const productionToday = live.reduce((s, r) => s + r.lengthTodayM, 0);
   const runningLines = live.filter((r) => r.running);
+  const productiveRunning = live.filter(
+    (r, i) => r.running && LINES[i].maxSpeed > 0
+  );
   const avgSpeed =
-    runningLines.length > 0
-      ? runningLines.reduce((s, r) => s + r.speed, 0) / runningLines.length
+    productiveRunning.length > 0
+      ? productiveRunning.reduce((s, r) => s + r.speed, 0) /
+        productiveRunning.length
       : 0;
   const sec =
     productionToday > 0 ? energyToday / (productionToday / 1000) : 0;
@@ -66,8 +64,11 @@ export default function Dashboard() {
     const row: Record<string, number | string> = {
       h: `${String(h).padStart(2, "0")}:00`,
     };
-    for (const l of LINES) {
-      row[l.name] = daySummaryHourEnergy(l.id, now, h);
+    for (const dv of DIVISIONS) {
+      row[dv.name] = LINES.filter((l) => l.division === dv.id).reduce(
+        (sum, l) => sum + daySummaryHourEnergy(l.id, now, h),
+        0
+      );
     }
     return row;
   });
@@ -92,7 +93,7 @@ export default function Dashboard() {
             label="Production today"
             value={fmtLength(productionToday).split(" ")[0]}
             unit={fmtLength(productionToday).split(" ")[1]}
-            sub={`${runningLines.length} of ${LINES.length} lines running`}
+            sub={`${runningLines.length} of ${LINES.length} machines running`}
           />
           <StatTile
             label="Specific energy"
@@ -110,7 +111,7 @@ export default function Dashboard() {
             label="Avg line speed"
             value={fmt(avgSpeed, 1)}
             unit="m/min"
-            sub="across running lines"
+            sub="across running production lines"
           />
         </div>
       </Card>
@@ -118,7 +119,7 @@ export default function Dashboard() {
       {/* live plant load */}
       <Card
         title="Plant load — live"
-        subtitle="Total active power across the four metered lines, last 60 minutes"
+        subtitle="Total active power across all 30 metered machines, last 60 minutes"
         right={
           <div className="readout text-right">
             <span className="font-display text-[26px] font-bold text-copper">
@@ -156,37 +157,33 @@ export default function Dashboard() {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {live.map((r, i) => {
-            const line = LINES[i];
-            const pct = Math.min(100, (r.kw / line.ratedKw) * 100);
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {DIVISIONS.map((dv) => {
+            const idx = LINES.map((l, i) => ({ l, i })).filter(
+              ({ l }) => l.division === dv.id
+            );
+            const kw = idx.reduce((sum, { i }) => sum + live[i].kw, 0);
+            const running = idx.filter(({ i }) => live[i].running).length;
+            const rated = idx.reduce((sum, { l }) => sum + l.ratedKw, 0);
+            const pct = Math.min(100, (kw / rated) * 100);
             return (
               <div
-                key={r.line}
+                key={dv.id}
                 className="rounded-lg border border-ring-1 bg-surface-2 px-3 py-2.5"
               >
                 <div className="flex items-center justify-between text-[12px]">
-                  <span className="font-semibold">{line.name}</span>
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider ${
-                      r.running ? "text-good" : "text-muted"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        r.running ? "live-dot bg-good" : "bg-baseline"
-                      }`}
-                    />
-                    {r.running ? "Run" : "Idle"}
+                  <span className="font-semibold">{dv.name}</span>
+                  <span className="text-[10.5px] uppercase tracking-wider text-muted">
+                    {running}/{idx.length} run
                   </span>
                 </div>
                 <div className="readout mt-1 text-[15px] font-semibold">
-                  {fmt(r.kw)} <span className="text-[11px] text-muted">kW</span>
+                  {fmt(kw)} <span className="text-[11px] text-muted">kW</span>
                 </div>
                 <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-baseline">
                   <div
                     className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${pct}%`, background: SERIES[i] }}
+                    style={{ width: `${pct}%`, background: DIV_COLOR[dv.id] }}
                   />
                 </div>
               </div>
@@ -199,7 +196,7 @@ export default function Dashboard() {
       <div className="grid gap-5 lg:grid-cols-2">
         <Card
           title="Energy by hour — today"
-          subtitle="kWh per line, stacked; up to the current hour"
+          subtitle="kWh per division, stacked; up to the current hour"
         >
           <div className="h-[240px]">
             <ResponsiveContainer>
@@ -211,15 +208,15 @@ export default function Dashboard() {
                   content={<VTooltip formatter={(v) => `${fmt(v)} kWh`} />}
                   cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 />
-                {LINES.map((l, i) => (
+                {DIVISIONS.map((dv, i) => (
                   <Bar
-                    key={l.id}
-                    dataKey={l.name}
+                    key={dv.id}
+                    dataKey={dv.name}
                     stackId="e"
-                    fill={SERIES[i]}
+                    fill={DIV_COLOR[dv.id]}
                     stroke="var(--surface)"
                     strokeWidth={1}
-                    radius={i === LINES.length - 1 ? [3, 3, 0, 0] : 0}
+                    radius={i === DIVISIONS.length - 1 ? [3, 3, 0, 0] : 0}
                     isAnimationActive={false}
                   />
                 ))}
@@ -391,14 +388,16 @@ function daySummaryHourEnergy(lineId: string, now: Date, h: number): number {
 function Legend() {
   return (
     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-      {LINES.map((l, i) => (
-        <span key={l.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-2">
+      {DIVISIONS.map((dv) => (
+        <span key={dv.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-2">
           <span
             className="inline-block h-2 w-2 rounded-[2px]"
-            style={{ background: SERIES[i] }}
+            style={{ background: DIV_COLOR[dv.id] }}
           />
-          {l.name}
-          <span className="text-muted">· {l.machine}</span>
+          {dv.name}
+          <span className="text-muted">
+            · {LINES.filter((l) => l.division === dv.id).length} machines
+          </span>
         </span>
       ))}
     </div>

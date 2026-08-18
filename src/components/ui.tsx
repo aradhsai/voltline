@@ -1,5 +1,6 @@
 "use client";
 
+import type { DivisionId } from "@/lib/data";
 import { motion } from "framer-motion";
 
 export function Card({
@@ -127,4 +128,12 @@ export const GRID = {
   stroke: "var(--grid)",
   strokeDasharray: "0",
   vertical: false as const,
+};
+
+export const DIV_COLOR: Record<DivisionId, string> = {
+  cable: "var(--series-1)",
+  crt: "var(--series-2)",
+  bsw: "var(--series-3)",
+  swg: "var(--series-4)",
+  picc: "var(--series-5)",
 };

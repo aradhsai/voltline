@@ -12,17 +12,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LINES, hourRecord, lastNDays } from "@/lib/data";
+import { DIVISIONS, LINES, hourRecord, lastNDays } from "@/lib/data";
 import { fmt } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
-import { AXIS, Card, GRID, VTooltip } from "@/components/ui";
-
-const SERIES = [
-  "var(--series-1)",
-  "var(--series-2)",
-  "var(--series-3)",
-  "var(--series-4)",
-];
+import { AXIS, Card, DIV_COLOR, GRID, VTooltip } from "@/components/ui";
 
 // sequential blue ramp (light→dark reversed for dark surface: low = near-surface)
 const HEAT = [
@@ -56,9 +49,13 @@ export default function TrendsPage() {
     });
   const heatMax = Math.max(...heat.flatMap((r) => r.hours));
 
-  const perLineDaily = days.map((d) => {
+  const perDivisionDaily = days.map((d) => {
     const row: Record<string, number | string> = { label: d.label };
-    for (const l of LINES) row[l.name] = d.perLine[l.id].energyKwh;
+    for (const dv of DIVISIONS)
+      row[dv.name] = LINES.filter((l) => l.division === dv.id).reduce(
+        (sum, l) => sum + d.perLine[l.id].energyKwh,
+        0
+      );
     return row;
   });
 
@@ -66,7 +63,7 @@ export default function TrendsPage() {
     <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
       <Card
         title="Plant energy — 30 days"
-        subtitle="Total kWh per day across all metered lines"
+        subtitle="Total kWh per day across all 30 metered machines"
       >
         <div className="h-[220px]">
           <ResponsiveContainer>
@@ -154,22 +151,22 @@ export default function TrendsPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card
-          title="Energy per line — 30 days"
-          subtitle="Daily kWh by line"
+          title="Energy per division — 30 days"
+          subtitle="Daily kWh by division"
         >
           <div className="h-[230px]">
             <ResponsiveContainer>
-              <LineChart data={perLineDaily} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+              <LineChart data={perDivisionDaily} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                 <CartesianGrid {...GRID} />
                 <XAxis dataKey="label" {...AXIS} tickFormatter={tick} />
                 <YAxis {...AXIS} width={56} />
                 <Tooltip content={<VTooltip formatter={(v) => `${fmt(v)} kWh`} />} />
-                {LINES.map((l, i) => (
+                {DIVISIONS.map((dv) => (
                   <Line
-                    key={l.id}
+                    key={dv.id}
                     type="monotone"
-                    dataKey={l.name}
-                    stroke={SERIES[i]}
+                    dataKey={dv.name}
+                    stroke={DIV_COLOR[dv.id]}
                     strokeWidth={2}
                     dot={false}
                     isAnimationActive={false}
@@ -179,13 +176,13 @@ export default function TrendsPage() {
             </ResponsiveContainer>
           </div>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-            {LINES.map((l, i) => (
-              <span key={l.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-2">
+            {DIVISIONS.map((dv) => (
+              <span key={dv.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-2">
                 <span
                   className="inline-block h-2 w-2 rounded-[2px]"
-                  style={{ background: SERIES[i] }}
+                  style={{ background: DIV_COLOR[dv.id] }}
                 />
-                {l.name}
+                {dv.name}
               </span>
             ))}
           </div>

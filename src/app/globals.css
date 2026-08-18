@@ -18,6 +18,7 @@
   --series-2: #d95926;
   --series-3: #199e70;
   --series-4: #c98500;
+  --series-5: #d55181;
   --status-good: #0ca30c;
   --status-warn: #fab219;
   --status-serious: #ec835a;
@@ -40,6 +41,7 @@
   --color-series-2: var(--series-2);
   --color-series-3: var(--series-3);
   --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
   --color-good: var(--status-good);
   --color-warn: var(--status-warn);
   --color-serious: var(--status-serious);
