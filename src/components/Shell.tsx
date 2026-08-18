@@ -85,10 +85,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <div className="mt-0.5 text-[13px] font-medium">
               Northwind Cable Works
             </div>
-            <div className="text-[11.5px] text-muted">Rotterdam · Hall B</div>
+            <div className="text-[11.5px] text-muted">Jebel Ali · Cable Division</div>
           </div>
           <div className="mt-4 text-[10.5px] leading-relaxed text-muted">
-            4 meters on Modbus TCP
+            4 lines · RS-485 via ECU-1051
             <br />
             Poll interval 2 s
           </div>

@@ -20,7 +20,7 @@ const PHASE_NAMES = ["L1", "L2", "L3"];
 
 export default function ProcessPage() {
   const now = useNow(2000);
-  const [selected, setSelected] = useState("ext1");
+  const [selected, setSelected] = useState("ext120");
   if (!now) return <Skeleton />;
 
   const readings = LINES.map((l) => liveReading(l, now.getTime()));
@@ -88,7 +88,7 @@ export default function ProcessPage() {
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
         <Card
           title={`${line.name} — energy meter`}
-          subtitle={`Modbus TCP · unit 1 · ${line.product}`}
+          subtitle={`Modbus RTU via ECU-1051 · ${line.product}`}
           right={<Waveform reading={r} />}
         >
           {/* phase columns */}
